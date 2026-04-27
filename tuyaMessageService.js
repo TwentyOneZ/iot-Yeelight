@@ -48,6 +48,10 @@ function obterEnvTuyaMessageService() {
   return TuyaWebsocket.env[env];
 }
 
+function obterNomeEnvTuyaMessageService() {
+  return (process.env.TUYA_MESSAGE_ENV || DEFAULT_ENV).toUpperCase();
+}
+
 function extrairEventoTuya(message) {
   const payload = message && message.payload;
   const envelope = payload && payload.data;
@@ -102,11 +106,17 @@ function iniciarTuyaMessageService({ onSwitchChange }) {
     return null;
   }
 
+  const messageUrl = obterUrlTuyaMessageService();
+  const messageEnv = obterEnvTuyaMessageService();
+  const messageEnvName = obterNomeEnvTuyaMessageService();
+
+  console.log(`Tuya Message Service iniciando em ${messageEnvName} (${messageUrl})`);
+
   const client = new TuyaWebsocket({
     accessId,
     accessKey,
-    url: obterUrlTuyaMessageService(),
-    env: obterEnvTuyaMessageService(),
+    url: messageUrl,
+    env: messageEnv,
     maxRetryTimes: Number(process.env.TUYA_MESSAGE_MAX_RETRIES || 100),
     retryTimeout: Number(process.env.TUYA_MESSAGE_RETRY_TIMEOUT_MS || 1000),
     timeout: Number(process.env.TUYA_MESSAGE_KEEPALIVE_MS || 30000),
@@ -135,6 +145,14 @@ function iniciarTuyaMessageService({ onSwitchChange }) {
 
       if (evento) {
         await onSwitchChange(evento);
+      } else if (process.env.TUYA_MESSAGE_DEBUG === 'true') {
+        const envelope = message && message.payload && message.payload.data;
+        const bizData = envelope && envelope.bizData;
+        const codes = bizData && Array.isArray(bizData.properties)
+          ? bizData.properties.map(item => item.code).join(', ')
+          : 'sem properties';
+
+        console.log(`Mensagem Tuya ignorada: bizCode=${envelope && envelope.bizCode}, devId=${bizData && bizData.devId}, codes=${codes}`);
       }
 
       client.ackMessage(message.messageId);
