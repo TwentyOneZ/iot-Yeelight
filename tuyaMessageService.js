@@ -21,6 +21,44 @@ function normalizarBooleano(valor) {
   return undefined;
 }
 
+function encontrarBizDataComPropriedades(valor) {
+  if (!valor || typeof valor !== 'object') {
+    return null;
+  }
+
+  if (valor.devId && (Array.isArray(valor.properties) || Array.isArray(valor.status))) {
+    return valor;
+  }
+
+  for (const item of Object.values(valor)) {
+    const encontrado = encontrarBizDataComPropriedades(item);
+    if (encontrado) {
+      return encontrado;
+    }
+  }
+
+  return null;
+}
+
+function resumirMensagemTuya(message) {
+  const payload = message && message.payload;
+  const envelope = payload && payload.data;
+  const bizData = encontrarBizDataComPropriedades(message);
+  const properties = bizData && (bizData.properties || bizData.status);
+  const codes = Array.isArray(properties)
+    ? properties.map(item => item.code).join(', ')
+    : 'sem properties';
+
+  return {
+    topLevelKeys: message && typeof message === 'object' ? Object.keys(message).join(', ') : '',
+    payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload).join(', ') : '',
+    dataKeys: envelope && typeof envelope === 'object' ? Object.keys(envelope).join(', ') : '',
+    bizCode: envelope && envelope.bizCode,
+    devId: bizData && bizData.devId,
+    codes,
+  };
+}
+
 function obterUrlTuyaMessageService() {
   if (process.env.TUYA_MESSAGE_URL) {
     return process.env.TUYA_MESSAGE_URL;
@@ -55,11 +93,11 @@ function obterNomeEnvTuyaMessageService() {
 function extrairEventoTuya(message) {
   const payload = message && message.payload;
   const envelope = payload && payload.data;
-  const data = envelope && envelope.bizData
+  const data = encontrarBizDataComPropriedades(message) || (envelope && envelope.bizData
     ? envelope.bizData
     : payload && payload.bizData
       ? payload.bizData
-      : envelope;
+      : envelope);
 
   if (!data || data.devId !== process.env.TUYA_DEVICE_ID) {
     return null;
@@ -146,13 +184,12 @@ function iniciarTuyaMessageService({ onSwitchChange }) {
       if (evento) {
         await onSwitchChange(evento);
       } else if (process.env.TUYA_MESSAGE_DEBUG === 'true') {
-        const envelope = message && message.payload && message.payload.data;
-        const bizData = envelope && envelope.bizData;
-        const codes = bizData && Array.isArray(bizData.properties)
-          ? bizData.properties.map(item => item.code).join(', ')
-          : 'sem properties';
+        const resumo = resumirMensagemTuya(message);
 
-        console.log(`Mensagem Tuya ignorada: bizCode=${envelope && envelope.bizCode}, devId=${bizData && bizData.devId}, codes=${codes}`);
+        console.log(
+          `Mensagem Tuya ignorada: bizCode=${resumo.bizCode}, devId=${resumo.devId}, codes=${resumo.codes}, ` +
+          `topLevelKeys=${resumo.topLevelKeys}, payloadKeys=${resumo.payloadKeys}, dataKeys=${resumo.dataKeys}`
+        );
       }
 
       client.ackMessage(message.messageId);
