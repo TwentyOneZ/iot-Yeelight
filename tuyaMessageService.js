@@ -50,7 +50,12 @@ function obterEnvTuyaMessageService() {
 
 function extrairEventoTuya(message) {
   const payload = message && message.payload;
-  const data = payload && (payload.data || payload.bizData);
+  const envelope = payload && payload.data;
+  const data = envelope && envelope.bizData
+    ? envelope.bizData
+    : payload && payload.bizData
+      ? payload.bizData
+      : envelope;
 
   if (!data || data.devId !== process.env.TUYA_DEVICE_ID) {
     return null;
@@ -78,7 +83,7 @@ function extrairEventoTuya(message) {
     deviceId: data.devId,
     code: switchStatus.code,
     ligada,
-    timestamp: switchStatus.t || switchStatus.time || data.t || payload.t || payload.ts || Date.now(),
+    timestamp: switchStatus.t || switchStatus.time || data.t || envelope && envelope.ts || payload.t || payload.ts || Date.now(),
     raw: message,
   };
 }
