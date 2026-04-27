@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const crypto = require('crypto');
 const TuyaWebsocketModule = require('message-subscription-websocket/dist');
 
 const TuyaWebsocket = TuyaWebsocketModule.default || TuyaWebsocketModule;
@@ -56,6 +57,91 @@ function resumirMensagemTuya(message) {
     bizCode: envelope && envelope.bizCode,
     devId: bizData && bizData.devId,
     codes,
+  };
+}
+
+function tentarJson(buffer) {
+  const texto = buffer.toString('utf8');
+  return JSON.parse(texto);
+}
+
+function descriptografarAesEcb(data, accessKey) {
+  const key = Buffer.from(accessKey.substring(8, 24), 'utf8');
+  const decipher = crypto.createDecipheriv('aes-128-ecb', key, null);
+  decipher.setAutoPadding(true);
+
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(data, 'base64')),
+    decipher.final(),
+  ]);
+
+  return tentarJson(decrypted);
+}
+
+function descriptografarAesGcm(data, accessKey) {
+  const key = Buffer.from(accessKey.substring(8, 24), 'utf8');
+  const encrypted = Buffer.from(data, 'base64');
+  const tentativas = [
+    { iv: encrypted.subarray(0, 12), content: encrypted.subarray(12) },
+    { iv: encrypted.subarray(0, 16), content: encrypted.subarray(16) },
+  ];
+
+  for (const tentativa of tentativas) {
+    if (tentativa.content.length <= 16) {
+      continue;
+    }
+
+    try {
+      const tag = tentativa.content.subarray(tentativa.content.length - 16);
+      const ciphertext = tentativa.content.subarray(0, tentativa.content.length - 16);
+      const decipher = crypto.createDecipheriv('aes-128-gcm', key, tentativa.iv);
+      decipher.setAuthTag(tag);
+
+      const decrypted = Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]);
+
+      return tentarJson(decrypted);
+    } catch (_error) {
+      // Tenta o proximo layout de IV.
+    }
+  }
+
+  return null;
+}
+
+function descriptografarDadosTuya(data, accessKey, encryptionMode) {
+  if (!data || typeof data !== 'string') {
+    return data;
+  }
+
+  if (encryptionMode === 'aes_gcm') {
+    const gcm = descriptografarAesGcm(data, accessKey);
+    if (gcm) {
+      return gcm;
+    }
+  }
+
+  try {
+    return descriptografarAesEcb(data, accessKey);
+  } catch (_error) {
+    return data;
+  }
+}
+
+function decodificarMensagemTuya(rawMessage, accessKey) {
+  const rawText = Buffer.isBuffer(rawMessage) ? rawMessage.toString('utf8') : String(rawMessage);
+  const { payload, properties, ...others } = JSON.parse(rawText);
+  const payloadJson = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+  const encryptionMode = properties && properties.em;
+
+  payloadJson.data = descriptografarDadosTuya(payloadJson.data, accessKey, encryptionMode);
+
+  return {
+    payload: payloadJson,
+    properties,
+    ...others,
   };
 }
 
@@ -159,6 +245,8 @@ function iniciarTuyaMessageService({ onSwitchChange }) {
     retryTimeout: Number(process.env.TUYA_MESSAGE_RETRY_TIMEOUT_MS || 1000),
     timeout: Number(process.env.TUYA_MESSAGE_KEEPALIVE_MS || 30000),
   });
+
+  client.handleMessage = data => decodificarMensagemTuya(data, accessKey);
 
   client.open(() => {
     console.log('Tuya Message Service conectado');
