@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  iot-app:
+    build: .
+    container_name: iot-container
+    restart: unless-stopped
+    # mapeie diretórios ou monte volumes, se quiser
+    # volumes:
+    #   - ./:/usr/src/app
+    environment:
+      # Passe suas variáveis de ambiente (credenciais, IPs, etc.)
+      - TUYA_ACCESS_KEY=${TUYA_ACCESS_KEY}
+      - TUYA_SECRET_KEY=${TUYA_SECRET_KEY}
+      - TUYA_DEVICE_ID=${TUYA_DEVICE_ID}
+      - TUYA_API_BASE_URL=${TUYA_API_BASE_URL:-https://openapi.tuyaus.com}
+      - TUYA_MESSAGE_REGION=${TUYA_MESSAGE_REGION:-US}
+      - TUYA_MESSAGE_ENV=${TUYA_MESSAGE_ENV:-PROD}
+      - TUYA_MESSAGE_ENABLED=${TUYA_MESSAGE_ENABLED:-true}
+      - MQTT_BROKER_URL=${MQTT_BROKER_URL}
+      - YEELIGHT_IP=${YEELIGHT_IP}
+      - YEELIGHT_PORT=${YEELIGHT_PORT}
+      - TUYA_INFRARED_ID=${TUYA_INFRARED_ID}
+      - TUYA_REMOTE_ID=${TUYA_REMOTE_ID}
+      - TUYA_REMOTE_CATEGORY_ID=${TUYA_REMOTE_CATEGORY_ID:-2}
+    # Seus containers não expõem porta, mas se precisar:
+    # ports:
+    #   - "3000:3000"

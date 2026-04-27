@@ -1,0 +1,26 @@
+{
+  "name": "whatsapp-mqtt-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tuya/tuya-connector-nodejs": "^2.1.2",
+    "@whiskeysockets/baileys": "^6.7.16",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^16.4.7",
+    "ini": "^5.0.0",
+    "message-subscription-websocket": "^1.0.2",
+    "mqtt": "^5.10.4",
+    "mysql2": "^3.14.0",
+    "node-yeelight-wifi": "^0.1.4",
+    "qrcode-terminal": "^0.12.0",
+    "tuyapi": "^7.7.0",
+    "yeelight-node": "^1.1.6"
+  }
+}
